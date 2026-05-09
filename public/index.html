@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Skyvil</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f5f4f0;--surface:#fff;--border:#e2e0d8;--border2:#ccc9be;
+  --text:#1a1917;--muted:#6b6860;
+  --blue:#1a56db;--blue-lt:#ebf1fd;--blue-dk:#1245b5;
+  --green:#0e7a50;--green-lt:#e8f7f1;
+  --red:#c0392b;--red-lt:#fdf0ee;
+  --amber:#92600a;--amber-lt:#fef6e4;
+  --r:10px;--rs:6px;
+}
+body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* ── Auth ── */
+.auth{min-height:100vh;display:flex;align-items:center;justify-content:center}
+.auth-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:0 4px 12px rgba(0,0,0,.1);padding:2.5rem 2rem;width:380px}
+.brand{font-size:1.4rem;font-weight:600;color:var(--blue);margin-bottom:1.5rem}
+.auth-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:1.25rem}
+.auth-tab{flex:1;padding:.6rem;background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;font-size:.9rem;color:var(--muted);font-family:inherit;transition:all .15s}
+.auth-tab.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:500}
+.auth-hint{font-size:.8rem;color:var(--muted);margin:-.5rem 0 1rem}
+.auth-err{background:var(--red-lt);color:var(--red);border-radius:var(--rs);padding:.6rem .75rem;font-size:.85rem;margin-top:.75rem;display:none}
+
+/* ── Nav ── */
+.nav{background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 1.5rem;height:56px;gap:1rem;position:sticky;top:0;z-index:10}
+.nav-brand{font-weight:600;font-size:1.1rem;color:var(--blue);margin-right:.5rem}
+.nav-links{display:flex;gap:.25rem}
+.nav-btn{padding:.4rem .9rem;border:none;border-radius:var(--rs);background:none;color:var(--muted);cursor:pointer;font-size:.875rem;font-family:inherit;transition:all .15s}
+.nav-btn:hover{background:var(--bg);color:var(--text)}
+.nav-btn.active{background:var(--blue-lt);color:var(--blue);font-weight:500}
+.nav-user{margin-left:auto;display:flex;align-items:center;gap:.75rem;font-size:.875rem;color:var(--muted)}
+
+/* ── Layout ── */
+.wrap{max-width:880px;margin:0 auto;padding:1.5rem 1.5rem 3rem}
+.pg-title{font-size:1.25rem;font-weight:600;margin-bottom:1.25rem}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.section{display:none}
+.section.active{display:block}
+
+/* ── Cards ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.25rem 1.5rem;margin-bottom:1rem;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.card h2{font-size:1.1rem;font-weight:600;margin-bottom:1rem}
+.card h3{font-size:.95rem;font-weight:600;margin-bottom:1rem}
+
+/* ── Forms ── */
+.grid{display:grid;gap:.75rem;margin-bottom:.75rem}
+.g2{grid-template-columns:1fr 1fr}
+.g3{grid-template-columns:1fr 1fr 1fr}
+.g4{grid-template-columns:1fr 1fr 1fr 1fr}
+.field{display:flex;flex-direction:column;gap:.3rem}
+label{font-size:.8rem;color:var(--muted);font-weight:500}
+input,select{height:38px;padding:0 10px;border:1px solid var(--border);border-radius:var(--rs);font-size:.875rem;font-family:inherit;color:var(--text);background:var(--surface);transition:border-color .15s,box-shadow .15s;width:100%}
+input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,86,219,.1)}
+input:disabled{background:var(--bg);color:var(--muted);cursor:not-allowed}
+.chk-row{display:flex;align-items:center;gap:.5rem;font-size:.875rem;cursor:pointer}
+.chk-row input[type=checkbox]{width:auto;height:auto}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;height:38px;padding:0 1rem;border:1px solid var(--border2);border-radius:var(--rs);font-size:.875rem;font-family:inherit;font-weight:500;cursor:pointer;background:var(--surface);color:var(--text);transition:all .15s;white-space:nowrap}
+.btn:hover{background:var(--bg)}
+.btn.pri{background:var(--blue);color:#fff;border-color:var(--blue)}
+.btn.pri:hover{background:var(--blue-dk);border-color:var(--blue-dk)}
+.btn.sec{background:var(--bg)}
+.btn.del{background:var(--red-lt);color:var(--red);border-color:#f0b4ae}
+.btn.del:hover{background:#fad5d1}
+.btn.ghost{background:none;border-color:transparent;color:var(--muted)}
+.btn.ghost:hover{background:var(--bg)}
+.btn.sm{height:30px;font-size:.8rem;padding:0 .75rem}
+.btn.full{width:100%}
+
+/* ── Flight cards ── */
+.f-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1rem 1.25rem;margin-bottom:.75rem;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.f-head{display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem}
+.airline-tag{background:var(--blue-lt);color:var(--blue-dk);font-size:.75rem;font-weight:600;padding:.2rem .5rem;border-radius:4px;font-family:'DM Mono',monospace}
+.route{display:flex;align-items:center;flex:1;gap:.75rem}
+.iata{font-size:1.5rem;font-weight:600;line-height:1}
+.ap-name{font-size:.72rem;color:var(--muted);margin-top:1px}
+.route-mid{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
+.route-line{height:1px;background:var(--border2);width:100%}
+.route-dur{font-size:.72rem;color:var(--muted)}
+.f-times{font-size:.78rem;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:.75rem}
+.price-row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.chip{border:1px solid var(--border2);border-radius:20px;padding:.3rem .75rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;transition:all .15s;background:var(--surface)}
+.chip:hover{border-color:var(--blue);background:var(--blue-lt)}
+.chip.sel{border-color:var(--blue);background:var(--blue-lt);color:var(--blue-dk)}
+.chip.full{opacity:.4;cursor:not-allowed;pointer-events:none}
+.chip .cls{font-size:.7rem;color:var(--muted)}
+.chip.sel .cls{color:var(--blue)}
+.chip .amt{font-weight:600}
+.chip .seats{font-size:.68rem;color:var(--muted)}
+.divider{height:1px;background:var(--border);margin:.75rem 0}
+.res-hdr{font-size:.8rem;color:var(--muted);font-weight:500;margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.05em}
+
+/* ── Booking cards ── */
+.b-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1rem 1.25rem;margin-bottom:.75rem;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.b-top{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
+.b-id{font-weight:600;font-size:.9rem;margin-bottom:.25rem}
+.b-meta{font-size:.78rem;color:var(--muted)}
+.tag{display:inline-block;font-size:.7rem;font-weight:600;padding:.15rem .5rem;border-radius:20px;margin-left:.4rem}
+.tag.eco{background:var(--green-lt);color:var(--green)}
+.tag.fst{background:var(--amber-lt);color:var(--amber)}
+.tag.ok{background:var(--green-lt);color:var(--green)}
+
+/* ── Account lists ── */
+.list-item{display:flex;align-items:center;justify-content:space-between;padding:.6rem 0;border-bottom:1px solid var(--border);gap:.5rem}
+.list-item:last-child{border-bottom:none}
+.li-info{flex:1;min-width:0}
+.li-title{font-size:.875rem;font-weight:500}
+.li-sub{font-size:.75rem;color:var(--muted);margin-top:1px}
+.mono{font-family:'DM Mono',monospace}
+
+/* ── Modal ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:100;display:none}
+.modal{background:var(--surface);border-radius:var(--r);box-shadow:0 4px 12px rgba(0,0,0,.1);border:1px solid var(--border);padding:1.5rem;width:420px;max-width:95vw}
+.m-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem}
+.m-title{font-size:1rem;font-weight:600}
+.m-close{background:none;border:none;font-size:1rem;cursor:pointer;color:var(--muted);padding:.25rem}
+.m-close:hover{color:var(--text)}
+.m-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1.25rem}
+.info-box{background:var(--blue-lt);color:var(--blue-dk);border-radius:var(--rs);padding:.75rem 1rem;font-size:.85rem;margin-bottom:1rem;border:1px solid #c3d5f7}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#1a1917;color:#fff;padding:.65rem 1rem;border-radius:var(--rs);font-size:.875rem;box-shadow:0 4px 12px rgba(0,0,0,.1);opacity:0;transform:translateY(8px);transition:all .25s;pointer-events:none;max-width:320px;z-index:999}
+.toast.show{opacity:1;transform:translateY(0)}
+
+/* ── Empty ── */
+.empty{text-align:center;padding:3rem 1rem;color:var(--muted);font-size:.9rem}
+.empty-icon{font-size:2.5rem;margin-bottom:.75rem}
+
+@media(max-width:640px){.g3,.g4,.two-col,.g2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- ══ AUTH ══════════════════════════════════════════════════════════════ -->
+<div class="auth" id="auth">
+  <div class="auth-box">
+    <div class="brand">✈ Skyvil</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="authTab('login')">Sign in</button>
+      <button class="auth-tab" onclick="authTab('register')">Register</button>
+    </div>
+
+    <div id="pane-login">
+      <div class="field" style="margin-bottom:.75rem"><label>Email</label><input type="email" id="li-email" placeholder="you@example.com"></div>
+      <p class="auth-hint">No password needed — just enter your registered email.</p>
+      <button class="btn pri full" onclick="login()">Sign in</button>
+    </div>
+
+    <div id="pane-register" style="display:none">
+      <div class="field" style="margin-bottom:.75rem"><label>Full name</label><input type="text" id="rg-name" placeholder="Jane Smith"></div>
+      <div class="field" style="margin-bottom:.75rem"><label>Email</label><input type="email" id="rg-email" placeholder="you@example.com"></div>
+      <div class="field" style="margin-bottom:.75rem"><label>Home airport <span style="font-weight:400">(optional)</span></label><select id="rg-airport"><option value="">— none —</option></select></div>
+      <button class="btn pri full" onclick="register()">Create account</button>
+    </div>
+
+    <div class="auth-err" id="auth-err"></div>
+  </div>
+</div>
+
+<!-- ══ APP ════════════════════════════════════════════════════════════════ -->
+<div id="app" style="display:none">
+  <nav class="nav">
+    <div class="nav-brand">✈ Skyvil</div>
+    <div class="nav-links">
+      <button class="nav-btn active" id="nb-search"   onclick="show('search')">🔍 Search</button>
+      <button class="nav-btn"        id="nb-bookings" onclick="show('bookings')">🎫 Bookings</button>
+      <button class="nav-btn"        id="nb-account"  onclick="show('account')">👤 Account</button>
+    </div>
+    <div class="nav-user"><span id="nav-name"></span><button class="btn ghost sm" onclick="logout()">Sign out</button></div>
+  </nav>
+
+  <!-- ── SEARCH ── -->
+  <div class="section active" id="sec-search">
+    <div class="wrap">
+      <div class="card">
+        <h2>Find flights</h2>
+        <div class="grid g3">
+          <div class="field"><label>From</label><select id="s-dep"></select></div>
+          <div class="field"><label>To</label><select id="s-arr"></select></div>
+          <div class="field"><label>Date</label><input type="date" id="s-date"></div>
+        </div>
+        <div class="grid g4">
+          <div class="field"><label>Class</label>
+            <select id="s-cls"><option value="Any">Any</option><option>Economy</option><option>First</option></select>
+          </div>
+          <div class="field"><label>Max price ($)</label><input type="number" id="s-max" placeholder="No limit" min="0"></div>
+          <div class="field"><label>Sort by</label>
+            <select id="s-sort"><option value="price">Price ↑</option><option value="duration">Duration ↑</option></select>
+          </div>
+          <div class="field" style="align-self:end"><button class="btn pri full" onclick="doSearch()">Search flights</button></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:1.5rem;margin-top:.25rem">
+          <label class="chk-row"><input type="checkbox" id="s-ret" onchange="toggleRet()"> Return flight</label>
+          <div id="ret-field" style="display:none;display:flex;align-items:center;gap:.5rem">
+            <label style="margin:0">Return date</label>
+            <input type="date" id="s-retdate" style="width:160px">
+          </div>
+        </div>
+      </div>
+      <div id="results"></div>
+    </div>
+  </div>
+
+  <!-- ── BOOKINGS ── -->
+  <div class="section" id="sec-bookings">
+    <div class="wrap">
+      <div class="pg-title">My Bookings</div>
+      <div id="bk-list"></div>
+    </div>
+  </div>
+
+  <!-- ── ACCOUNT ── -->
+  <div class="section" id="sec-account">
+    <div class="wrap">
+      <div class="pg-title">Account</div>
+      <div class="two-col">
+        <div>
+          <div class="card">
+            <h3>Profile</h3>
+            <div class="field" style="margin-bottom:.75rem"><label>Name</label><input type="text" id="ac-name"></div>
+            <div class="field" style="margin-bottom:.75rem"><label>Email</label><input type="email" id="ac-email" disabled></div>
+            <div class="field" style="margin-bottom:.75rem"><label>Home airport</label><select id="ac-ap"></select></div>
+            <button class="btn pri" onclick="saveProfile()">Save changes</button>
+          </div>
+          <div class="card">
+            <h3>Addresses</h3>
+            <div id="addr-list"></div>
+            <button class="btn sec sm" style="margin-top:.5rem" onclick="openAddAddr()">+ Add address</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Credit cards</h3>
+          <div id="card-list"></div>
+          <button class="btn sec sm" style="margin-top:.5rem" onclick="openAddCard()">+ Add card</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL ══════════════════════════════════════════════════════════════ -->
+<div class="modal-bg" id="mbg" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="m-head"><span class="m-title" id="m-title"></span><button class="m-close" onclick="closeModal()">✕</button></div>
+    <div id="m-body"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────
+let user = null, airports = [], addresses = [], cards = [], selClass = {};
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+(async () => {
+  airports = await get('/airports').catch(() => []);
+  fillAirports(['s-dep','s-arr','rg-airport','ac-ap']);
+  const s = sessionStorage.getItem('skyvil');
+  if (s) { user = JSON.parse(s); enterApp(); }
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('s-date').value = today;
+  document.getElementById('s-retdate').value = today;
+})();
+
+// ── HTTP ──────────────────────────────────────────────────────────────────
+async function req(method, path, body) {
+  const r = await fetch(path, { method, headers:{'Content-Type':'application/json'}, body: body ? JSON.stringify(body) : undefined });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+  return d;
+}
+const get  = p       => req('GET',    p);
+const post = (p,b)   => req('POST',   p, b);
+const put  = (p,b)   => req('PUT',    p, b);
+const del  = p       => req('DELETE', p);
+
+// ── Airport helpers ───────────────────────────────────────────────────────
+function fillAirports(ids) {
+  const opts = airports.map(a => `<option value="${a.iata_code}">${a.iata_code} — ${a.name}</option>`).join('');
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const none = el.id.startsWith('s-') ? '' : '<option value="">— none —</option>';
+    el.innerHTML = none + opts;
+  });
+  const arr = document.getElementById('s-arr');
+  if (arr && arr.options.length > 1) arr.selectedIndex = 1;
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────
+function authTab(t) {
+  document.getElementById('pane-login').style.display    = t==='login'    ? '' : 'none';
+  document.getElementById('pane-register').style.display = t==='register' ? '' : 'none';
+  document.querySelectorAll('.auth-tab').forEach((b,i) =>
+    b.classList.toggle('active', i===0 ? t==='login' : t==='register'));
+  document.getElementById('auth-err').style.display = 'none';
+}
+
+async function login() {
+  const email = document.getElementById('li-email').value.trim();
+  if (!email) return authErr('Please enter your email.');
+  try { user = await get(`/customers/${encodeURIComponent(email)}`); save(); enterApp(); }
+  catch(e) { authErr(e.message === 'Customer not found' ? 'No account found — please register.' : e.message); }
+}
+
+async function register() {
+  const name  = document.getElementById('rg-name').value.trim();
+  const email = document.getElementById('rg-email').value.trim();
+  const ap    = document.getElementById('rg-airport').value || null;
+  if (!name || !email) return authErr('Name and email required.');
+  try { user = await post('/customers', {email, name, home_airport_code: ap}); save(); enterApp(); }
+  catch(e) { authErr(e.message); }
+}
+
+function logout() {
+  sessionStorage.removeItem('skyvil'); user = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth').style.display = '';
+}
+
+function enterApp() {
+  document.getElementById('auth').style.display = 'none';
+  document.getElementById('app').style.display  = '';
+  document.getElementById('nav-name').textContent = user.name;
+  show('search');
+}
+
+function save() { sessionStorage.setItem('skyvil', JSON.stringify(user)); }
+function authErr(m) { const e=document.getElementById('auth-err'); e.textContent=m; e.style.display=''; }
+
+// ── Page switching ─────────────────────────────────────────────────────────
+function show(name) {
+  ['search','bookings','account'].forEach(n => {
+    document.getElementById('sec-'+n).classList.toggle('active', n===name);
+    document.getElementById('nb-'+n).classList.toggle('active', n===name);
+  });
+  if (name==='bookings') loadBookings();
+  if (name==='account')  loadAccount();
+}
+
+// ── Search ────────────────────────────────────────────────────────────────
+function toggleRet() {
+  document.getElementById('ret-field').style.display =
+    document.getElementById('s-ret').checked ? 'flex' : 'none';
+}
+
+async function doSearch() {
+  const dep  = document.getElementById('s-dep').value;
+  const arr  = document.getElementById('s-arr').value;
+  const date = document.getElementById('s-date').value;
+  const cls  = document.getElementById('s-cls').value;
+  const max  = document.getElementById('s-max').value;
+  const sort = document.getElementById('s-sort').value;
+  if (!dep||!arr||!date) return toast('Fill in all search fields.');
+  if (dep===arr) return toast('Departure and arrival must differ.');
+
+  const area = document.getElementById('results');
+  area.innerHTML = '<div class="empty">Searching…</div>';
+  try {
+    const p = new URLSearchParams({dep,arr,date,class:cls,sort});
+    if (max) p.set('maxPrice', max);
+    const out = await get('/flights?'+p);
+
+    let ret = [];
+    if (document.getElementById('s-ret').checked) {
+      const rd = document.getElementById('s-retdate').value;
+      if (rd) {
+        const rp = new URLSearchParams({dep:arr,arr:dep,date:rd,class:cls,sort});
+        if (max) rp.set('maxPrice', max);
+        ret = await get('/flights?'+rp).catch(() => []);
+      }
+    }
+    renderResults(out, ret, area);
+  } catch(e) { area.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
+}
+
+function renderResults(out, ret, area) {
+  if (!out.length && !ret.length) {
+    area.innerHTML='<div class="empty"><div class="empty-icon">✈</div>No flights found.</div>'; return;
+  }
+  let h = '';
+  if (out.length) h += `<div class="res-hdr">${out.length} outbound flight${out.length>1?'s':''}</div>` + out.map(f=>fCard(f,'o')).join('');
+  if (ret.length) h += `<div class="res-hdr" style="margin-top:1.25rem">${ret.length} return flight${ret.length>1?'s':''}</div>` + ret.map(f=>fCard(f,'r')).join('');
+  area.innerHTML = h;
+}
+
+function fCard(f, dir) {
+  const key = `${dir}-${f.airline_code}${f.flight_number}${f.flight_date}`;
+  const dur = durStr(f.departure_time, f.arrival_time);
+  const eco = parseInt(f.eco_available), fc = parseInt(f.first_available);
+  const dt  = f.departure_time.slice(0,5), at = f.arrival_time.slice(0,5);
+
+  const eChip = f.eco_price!=null ? `<div class="chip${eco<=0?' full':''}" onclick="selCls('${key}','Economy',${f.eco_price},this)">
+    <span class="cls">Economy</span><span class="amt">$${Math.round(f.eco_price)}</span>
+    <span class="seats">${eco>0?eco+' left':'FULL'}</span></div>` : '';
+  const fChip = f.first_price!=null ? `<div class="chip${fc<=0?' full':''}" onclick="selCls('${key}','First',${f.first_price},this)">
+    <span class="cls">First</span><span class="amt">$${Math.round(f.first_price)}</span>
+    <span class="seats">${fc>0?fc+' left':'FULL'}</span></div>` : '';
+
+  return `<div class="f-card" id="fc-${key}">
+    <div class="f-head"><span class="airline-tag">${f.airline_code} ${f.flight_number}</span>
+      <span style="font-size:.78rem;color:var(--muted)">${f.airline_name}</span></div>
+    <div class="route">
+      <div><div class="iata">${f.departure_airport}</div><div class="ap-name">${f.dep_name||''}</div></div>
+      <div class="route-mid"><div class="route-dur">${dur}</div><div class="route-line"></div></div>
+      <div style="text-align:right"><div class="iata">${f.arrival_airport}</div><div class="ap-name">${f.arr_name||''}</div></div>
+    </div>
+    <div class="f-times"><span>Departs ${dt}</span><span>Arrives ${at}</span></div>
+    <div class="divider"></div>
+    <div class="price-row">${eChip}${fChip}
+      <button class="btn pri sm" style="margin-left:auto" onclick="bookPrompt('${f.airline_code}','${f.flight_number}','${f.flight_date}','${key}')">Book →</button>
+    </div>
+  </div>`;
+}
+
+function selCls(key, cls, price, el) {
+  document.querySelectorAll(`#fc-${key} .chip`).forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
+  selClass[key] = {cls, price};
+}
+
+function durStr(dep, arr) {
+  const [dh,dm]=dep.split(':').map(Number),[ah,am]=arr.split(':').map(Number);
+  const t=(ah*60+am)-(dh*60+dm);
+  return `${Math.floor(t/60)}h ${t%60}m`;
+}
+
+// ── Book ──────────────────────────────────────────────────────────────────
+async function bookPrompt(airline, num, date, key) {
+  cards = await get(`/cards?email=${encodeURIComponent(user.email)}`).catch(()=>[]);
+  if (!cards.length) { toast('Add a credit card in Account first.'); return; }
+  const sel = selClass[key] || {};
+  const cls = sel.cls || 'Economy', price = sel.price;
+  const opts = cards.map(c=>`<option value="${c.card_number}">${mask(c.card_number)} — ${c.card_holder}</option>`).join('');
+  openModal('Confirm booking', `
+    <div class="info-box"><strong>${airline} ${num}</strong> · ${date}<br>
+      ${cls} class${price?' · <strong>$'+parseFloat(price).toFixed(2)+'</strong>':''}</div>
+    <div class="field" style="margin-bottom:0"><label>Payment</label><select id="m-card">${opts}</select></div>
+    <div class="m-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn pri" onclick="doBook('${airline}','${num}','${date}','${cls}')">Confirm</button>
+    </div>`);
+}
+
+async function doBook(airline, num, date, cls) {
+  const card = document.getElementById('m-card')?.value;
+  try {
+    const r = await post('/bookings', {
+      customer_email: user.email, airline_code: airline,
+      flight_number: parseInt(num), flight_date: date, seat_class: cls, card_number: card
+    });
+    closeModal();
+    toast(`Booking #${r.booking_id} confirmed!${r.price?' $'+parseFloat(r.price).toFixed(2):''}`);
+    doSearch();
+  } catch(e) { toast('Booking failed: '+e.message); }
+}
+
+// ── Bookings ──────────────────────────────────────────────────────────────
+async function loadBookings() {
+  const el = document.getElementById('bk-list');
+  el.innerHTML = '<div class="empty">Loading…</div>';
+  try {
+    const bks = await get(`/bookings?email=${encodeURIComponent(user.email)}`);
+    if (!bks.length) { el.innerHTML='<div class="empty"><div class="empty-icon">🎫</div>No bookings yet.</div>'; return; }
+    el.innerHTML = bks.map(b => {
+      const fl = b.flights[0];
+      const dur = durStr(fl.departure_time, fl.arrival_time);
+      return `<div class="b-card">
+        <div class="b-top">
+          <div>
+            <div class="b-id">Booking #${b.booking_id}
+              <span class="tag ${fl.seat_class==='First'?'fst':'eco'}">${fl.seat_class}</span>
+              <span class="tag ok">Confirmed</span></div>
+            <div class="b-meta">${fl.airline_name} ${fl.airline_code}${fl.flight_number} · ${fl.flight_date}</div>
+          </div>
+          <button class="btn del sm" onclick="cancelBook(${b.booking_id})">Cancel</button>
+        </div>
+        <div class="divider"></div>
+        <div style="display:flex;justify-content:space-between;font-size:.85rem">
+          <div><strong>${fl.departure_airport}</strong> ${fl.dep_name||''}<br><span style="color:var(--muted)">${fl.departure_time.slice(0,5)}</span></div>
+          <div style="text-align:center;color:var(--muted);font-size:.78rem">${dur}<br>→</div>
+          <div style="text-align:right"><strong>${fl.arrival_airport}</strong> ${fl.arr_name||''}<br><span style="color:var(--muted)">${fl.arrival_time.slice(0,5)}</span></div>
+        </div>
+        ${fl.price?`<div style="margin-top:.5rem;font-size:.8rem;color:var(--muted)">Paid $${parseFloat(fl.price).toFixed(2)} · ${mask(fl.card_number)}</div>`:''}
+      </div>`;
+    }).join('');
+  } catch(e) { el.innerHTML=`<div class="empty">Error: ${e.message}</div>`; }
+}
+
+async function cancelBook(id) {
+  if (!confirm(`Cancel booking #${id}?`)) return;
+  try { await del(`/bookings/${id}`); toast(`Booking #${id} cancelled.`); loadBookings(); }
+  catch(e) { toast(e.message); }
+}
+
+// ── Account ───────────────────────────────────────────────────────────────
+async function loadAccount() {
+  document.getElementById('ac-name').value  = user.name;
+  document.getElementById('ac-email').value = user.email;
+  const ap = document.getElementById('ac-ap');
+  ap.innerHTML = '<option value="">— none —</option>' +
+    airports.map(a=>`<option value="${a.iata_code}"${a.iata_code===user.home_airport_code?' selected':''}>${a.iata_code} — ${a.name}</option>`).join('');
+  await loadAddr();
+  await loadCards();
+}
+
+async function saveProfile() {
+  try {
+    user = await put(`/customers/${encodeURIComponent(user.email)}`, {
+      name: document.getElementById('ac-name').value.trim(),
+      home_airport_code: document.getElementById('ac-ap').value || null
+    });
+    save(); document.getElementById('nav-name').textContent = user.name;
+    toast('Profile saved.');
+  } catch(e) { toast(e.message); }
+}
+
+async function loadAddr() {
+  addresses = await get(`/addresses?email=${encodeURIComponent(user.email)}`).catch(()=>[]);
+  const el = document.getElementById('addr-list');
+  if (!addresses.length) { el.innerHTML='<div style="font-size:.85rem;color:var(--muted);padding:.5rem 0">No addresses.</div>'; return; }
+  el.innerHTML = addresses.map(a=>`<div class="list-item">
+    <div class="li-info"><div class="li-title">${a.street}</div>
+      <div class="li-sub">${[a.city,a.state,a.country].filter(Boolean).join(', ')}</div></div>
+    <button class="btn del sm" onclick="delAddr(${a.address_id},${a.is_billing})">✕</button>
+  </div>`).join('');
+}
+
+async function delAddr(id, billing) {
+  if (billing) { toast('Cannot delete: used as billing address.'); return; }
+  if (!confirm('Delete this address?')) return;
+  try { await del(`/addresses/${id}`); toast('Address deleted.'); loadAddr(); }
+  catch(e) { toast(e.message); }
+}
+
+function openAddAddr() {
+  openModal('Add address', `
+    <div class="grid" style="margin-bottom:.75rem">
+      <div class="field" style="grid-column:1/-1"><label>Street</label><input type="text" id="na-street" placeholder="123 Main St"></div>
+    </div>
+    <div class="grid g2" style="margin-bottom:.75rem">
+      <div class="field"><label>City</label><input type="text" id="na-city"></div>
+      <div class="field"><label>State <span style="font-weight:400">(optional)</span></label><input type="text" id="na-state"></div>
+    </div>
+    <div class="field" style="margin-bottom:0"><label>Country</label><input type="text" id="na-country" value="USA"></div>
+    <div class="m-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn pri" onclick="submitAddr()">Save</button>
+    </div>`);
+}
+
+async function submitAddr() {
+  const street=document.getElementById('na-street').value.trim();
+  const city=document.getElementById('na-city').value.trim();
+  const state=document.getElementById('na-state').value.trim();
+  const country=document.getElementById('na-country').value.trim();
+  if (!street||!city||!country) { toast('Street, city, country required.'); return; }
+  try {
+    await post('/addresses', {street, city, state:state||null, country, customer_email:user.email});
+    closeModal(); toast('Address added.'); loadAddr();
+  } catch(e) { toast(e.message); }
+}
+
+async function loadCards() {
+  cards = await get(`/cards?email=${encodeURIComponent(user.email)}`).catch(()=>[]);
+  const el = document.getElementById('card-list');
+  if (!cards.length) { el.innerHTML='<div style="font-size:.85rem;color:var(--muted);padding:.5rem 0">No cards.</div>'; return; }
+  el.innerHTML = cards.map(c=>`<div class="list-item">
+    <div class="li-info">
+      <div class="li-title mono">${mask(c.card_number)}</div>
+      <div class="li-sub">${c.card_holder} · exp. ${c.expiry}<br>${c.street}, ${c.city}</div>
+    </div>
+    <button class="btn del sm" onclick="delCard('${c.card_number.replace(/'/g,"\\'")}')">✕</button>
+  </div>`).join('');
+}
+
+async function delCard(num) {
+  if (!confirm('Delete this card?')) return;
+  try { await del(`/cards/${encodeURIComponent(num)}`); toast('Card deleted.'); loadCards(); }
+  catch(e) { toast(e.message); }
+}
+
+function openAddCard() {
+  if (!addresses.length) { toast('Add an address first.'); return; }
+  const opts = addresses.map(a=>`<option value="${a.address_id}">${a.street}, ${a.city}</option>`).join('');
+  openModal('Add credit card', `
+    <div class="field" style="margin-bottom:.75rem"><label>Card number</label><input type="text" id="nc-num" placeholder="4111 1111 1111 1111" maxlength="20"></div>
+    <div class="grid g2" style="margin-bottom:.75rem">
+      <div class="field"><label>Card holder</label><input type="text" id="nc-holder"></div>
+      <div class="field"><label>Expiry (MM/YYYY)</label><input type="text" id="nc-exp" placeholder="08/2028" maxlength="7"></div>
+    </div>
+    <div class="field" style="margin-bottom:0"><label>Billing address</label><select id="nc-addr">${opts}</select></div>
+    <div class="m-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn pri" onclick="submitCard()">Save</button>
+    </div>`);
+}
+
+async function submitCard() {
+  const num=document.getElementById('nc-num').value.replace(/\s/g,'');
+  const holder=document.getElementById('nc-holder').value.trim();
+  const expiry=document.getElementById('nc-exp').value.trim();
+  const addrId=document.getElementById('nc-addr').value;
+  if (!num||!holder||!expiry||!addrId) { toast('All fields required.'); return; }
+  if (!/^\d{2}\/\d{4}$/.test(expiry)) { toast('Expiry must be MM/YYYY.'); return; }
+  try {
+    await post('/cards', {card_number:num, card_holder:holder, expiry, customer_email:user.email, billing_address_id:parseInt(addrId)});
+    closeModal(); toast('Card added.'); loadCards();
+  } catch(e) { toast(e.message); }
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────
+function openModal(title, body) {
+  document.getElementById('m-title').textContent = title;
+  document.getElementById('m-body').innerHTML = body;
+  document.getElementById('mbg').style.display = 'flex';
+}
+function closeModal() { document.getElementById('mbg').style.display = 'none'; }
+
+// ── Toast ─────────────────────────────────────────────────────────────────
+let _tt;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(_tt); _tt = setTimeout(()=>el.classList.remove('show'), 3500);
+}
+
+// ── Util ──────────────────────────────────────────────────────────────────
+function mask(n) { return n ? '•••• •••• •••• '+String(n).slice(-4) : ''; }
+</script>
+</body>
+</html>

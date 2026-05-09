@@ -118,6 +118,40 @@ app.delete('/cards/:num', wrap(async (req, res) => {
   ok(res, { ok: true });
 }));
 
+// ── All flights (no filter) ───────────────────────────────────────────────
+app.get('/flights/all', wrap(async (req, res) => {
+  const { rows } = await db.query(
+    `SELECT
+       f.airline_code, f.flight_number, f.flight_date,
+       f.departure_airport, f.arrival_airport,
+       f.departure_time, f.arrival_time,
+       f.first_class_capacity, f.economy_capacity,
+       al.name AS airline_name,
+       da.name AS dep_name,
+       aa.name AS arr_name,
+       COALESCE(SUM(CASE WHEN bf.seat_class = 'First'   THEN 1 ELSE 0 END), 0) AS first_booked,
+       COALESCE(SUM(CASE WHEN bf.seat_class = 'Economy' THEN 1 ELSE 0 END), 0) AS eco_booked,
+       MAX(CASE WHEN p.seat_class = 'First'   THEN p.amount END) AS first_price,
+       MAX(CASE WHEN p.seat_class = 'Economy' THEN p.amount END) AS eco_price
+     FROM flight f
+     JOIN airline  al ON al.code      = f.airline_code
+     JOIN airport  da ON da.iata_code = f.departure_airport
+     JOIN airport  aa ON aa.iata_code = f.arrival_airport
+     LEFT JOIN price p ON p.airline_code=f.airline_code AND p.flight_number=f.flight_number AND p.flight_date=f.flight_date
+     LEFT JOIN booking_flight bf ON bf.airline_code=f.airline_code AND bf.flight_number=f.flight_number AND bf.flight_date=f.flight_date
+     GROUP BY f.airline_code,f.flight_number,f.flight_date,f.departure_airport,f.arrival_airport,
+              f.departure_time,f.arrival_time,f.first_class_capacity,f.economy_capacity,
+              al.name,da.name,aa.name
+     ORDER BY f.flight_date, f.departure_time`
+  );
+  const results = rows.map(r => ({
+    ...r,
+    first_available: r.first_class_capacity - parseInt(r.first_booked),
+    eco_available:   r.economy_capacity     - parseInt(r.eco_booked),
+  }));
+  ok(res, results);
+}));
+
 // ── Flights search ────────────────────────────────────────────────────────
 app.get('/flights', wrap(async (req, res) => {
   const { dep, arr, date, class: cls, maxPrice, sort } = req.query;

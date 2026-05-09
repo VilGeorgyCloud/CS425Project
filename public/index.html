@@ -258,73 +258,103 @@ input:disabled{background:var(--bg);color:var(--muted);cursor:not-allowed}
 
 <script>
 // ── State ─────────────────────────────────────────────────────────────────
-let user = null, airports = [], addresses = [], cards = [], selClass = {};
+var user = null, airports = [], addresses = [], cards = [], selClass = {};
 
-// ── HTTP ──────────────────────────────────────────────────────────────────
-async function req(method, path, body) {
-  const r = await fetch(path, { method, headers:{'Content-Type':'application/json'}, body: body ? JSON.stringify(body) : undefined });
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
-  return d;
+// ── HTTP (defined first, no const so no hoisting issues) ──────────────────
+function req(method, path, body) {
+  return fetch(path, {
+    method: method,
+    headers: {'Content-Type':'application/json'},
+    body: body ? JSON.stringify(body) : undefined
+  }).then(function(r) {
+    return r.json().catch(function(){ return {}; }).then(function(d) {
+      if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status);
+      return d;
+    });
+  });
 }
-const get  = p       => req('GET',    p);
-const post = (p,b)   => req('POST',   p, b);
-const put  = (p,b)   => req('PUT',    p, b);
-const del  = p       => req('DELETE', p);
+function get(p)    { return req('GET',    p); }
+function post(p,b) { return req('POST',   p, b); }
+function put(p,b)  { return req('PUT',    p, b); }
+function del(p)    { return req('DELETE', p); }
 
 // ── Boot ──────────────────────────────────────────────────────────────────
-(async () => {
-  airports = await get('/airports').catch(() => []);
-  fillAirports(['s-dep','s-arr','rg-airport','ac-ap']);
-  const s = sessionStorage.getItem('skyvil');
-  if (s) { user = JSON.parse(s); enterApp(); }
-  const today = new Date().toISOString().slice(0,10);
-  document.getElementById('s-date').value = today;
+window.addEventListener('DOMContentLoaded', function() {
+  var today = new Date().toISOString().slice(0,10);
+  document.getElementById('s-date').value    = today;
   document.getElementById('s-retdate').value = today;
-})();
+
+  get('/airports').then(function(data) {
+    airports = data;
+    fillAirports();
+    // Set dropdown defaults after airports loaded
+    if (airports.length >= 2) {
+      document.getElementById('s-dep').value = airports[0].iata_code;
+      document.getElementById('s-arr').value = airports[1].iata_code;
+    }
+    // Load ALL flights straight from DB on page load
+    loadAllFlights();
+  }).catch(function(e) {
+    console.error('Failed to load airports:', e);
+  });
+
+  var saved = sessionStorage.getItem('skyvil');
+  if (saved) { user = JSON.parse(saved); enterApp(); }
+});
 
 // ── Airport helpers ───────────────────────────────────────────────────────
-function fillAirports(ids) {
-  const opts = airports.map(a => `<option value="${a.iata_code}">${a.iata_code} — ${a.name}</option>`).join('');
-  ids.forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const none = el.id.startsWith('s-') ? '' : '<option value="">— none —</option>';
-    el.innerHTML = none + opts;
+function fillAirports() {
+  var opts = airports.map(function(a) {
+    return '<option value="' + a.iata_code + '">' + a.iata_code + ' \u2014 ' + a.name + '</option>';
+  }).join('');
+  var none = '<option value="">\u2014 none \u2014</option>';
+
+  ['s-dep','s-arr'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = opts;
   });
-  const arr = document.getElementById('s-arr');
+  ['rg-airport','ac-ap'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = none + opts;
+  });
+
+  var arr = document.getElementById('s-arr');
   if (arr && arr.options.length > 1) arr.selectedIndex = 1;
-  // Also fill ac-ap with current user home airport selected when on account page
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 function authTab(t) {
   document.getElementById('pane-login').style.display    = t==='login'    ? '' : 'none';
   document.getElementById('pane-register').style.display = t==='register' ? '' : 'none';
-  document.querySelectorAll('.auth-tab').forEach((b,i) =>
-    b.classList.toggle('active', i===0 ? t==='login' : t==='register'));
+  document.querySelectorAll('.auth-tab').forEach(function(b,i) {
+    b.classList.toggle('active', i===0 ? t==='login' : t==='register');
+  });
   document.getElementById('auth-err').style.display = 'none';
 }
 
-async function login() {
-  const email = document.getElementById('li-email').value.trim();
+function login() {
+  var email = document.getElementById('li-email').value.trim();
   if (!email) return authErr('Please enter your email.');
-  try { user = await get(`/customers/${encodeURIComponent(email)}`); save(); enterApp(); }
-  catch(e) { authErr(e.message === 'Customer not found' ? 'No account found — please register.' : e.message); }
+  get('/customers/' + encodeURIComponent(email)).then(function(u) {
+    user = u; save(); enterApp();
+  }).catch(function(e) {
+    authErr(e.message === 'Customer not found' ? 'No account found \u2014 please register.' : e.message);
+  });
 }
 
-async function register() {
-  const name  = document.getElementById('rg-name').value.trim();
-  const email = document.getElementById('rg-email').value.trim();
-  const ap    = document.getElementById('rg-airport').value || null;
+function register() {
+  var name  = document.getElementById('rg-name').value.trim();
+  var email = document.getElementById('rg-email').value.trim();
+  var ap    = document.getElementById('rg-airport').value || null;
   if (!name || !email) return authErr('Name and email required.');
-  try { user = await post('/customers', {email, name, home_airport_code: ap}); save(); enterApp(); }
-  catch(e) { authErr(e.message); }
+  post('/customers', {email:email, name:name, home_airport_code:ap}).then(function(u) {
+    user = u; save(); enterApp();
+  }).catch(function(e) { authErr(e.message); });
 }
 
 function logout() {
   sessionStorage.removeItem('skyvil'); user = null;
-  document.getElementById('app').style.display = 'none';
+  document.getElementById('app').style.display  = 'none';
   document.getElementById('auth').style.display = '';
 }
 
@@ -336,11 +366,11 @@ function enterApp() {
 }
 
 function save() { sessionStorage.setItem('skyvil', JSON.stringify(user)); }
-function authErr(m) { const e=document.getElementById('auth-err'); e.textContent=m; e.style.display=''; }
+function authErr(m) { var e=document.getElementById('auth-err'); e.textContent=m; e.style.display=''; }
 
 // ── Page switching ─────────────────────────────────────────────────────────
 function show(name) {
-  ['search','bookings','account'].forEach(n => {
+  ['search','bookings','account'].forEach(function(n) {
     document.getElementById('sec-'+n).classList.toggle('active', n===name);
     document.getElementById('nb-'+n).classList.toggle('active', n===name);
   });
@@ -354,269 +384,312 @@ function toggleRet() {
     document.getElementById('s-ret').checked ? 'flex' : 'none';
 }
 
-async function doSearch() {
-  const dep  = document.getElementById('s-dep').value;
-  const arr  = document.getElementById('s-arr').value;
-  const date = document.getElementById('s-date').value;
-  const cls  = document.getElementById('s-cls').value;
-  const max  = document.getElementById('s-max').value;
-  const sort = document.getElementById('s-sort').value;
-  if (!dep||!arr||!date) return toast('Fill in all search fields.');
-  if (dep===arr) return toast('Departure and arrival must differ.');
-
-  const area = document.getElementById('results');
-  area.innerHTML = '<div class="empty">Searching…</div>';
-  try {
-    const p = new URLSearchParams({dep,arr,date,class:cls,sort});
-    if (max) p.set('maxPrice', max);
-    const out = await get('/flights?'+p);
-
-    let ret = [];
-    if (document.getElementById('s-ret').checked) {
-      const rd = document.getElementById('s-retdate').value;
-      if (rd) {
-        const rp = new URLSearchParams({dep:arr,arr:dep,date:rd,class:cls,sort});
-        if (max) rp.set('maxPrice', max);
-        ret = await get('/flights?'+rp).catch(() => []);
-      }
+function loadAllFlights() {
+  var area = document.getElementById('results');
+  area.innerHTML = '<div class="empty">Loading flights…</div>';
+  get('/flights/all').then(function(flights) {
+    if (!flights.length) {
+      area.innerHTML = '<div class="empty"><div class="empty-icon">✈</div>No flights in the database yet.</div>';
+      return;
     }
-    renderResults(out, ret, area);
-  } catch(e) { area.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
+    area.innerHTML = '<div class="res-hdr">All available flights (' + flights.length + ')</div>'
+      + flights.map(function(f){ return fCard(f,'o'); }).join('');
+  }).catch(function(e) {
+    area.innerHTML = '<div class="empty">Error loading flights: ' + e.message + '</div>';
+  });
+}
+
+function doSearch() {
+  var dep  = document.getElementById('s-dep').value;
+  var arr  = document.getElementById('s-arr').value;
+  var date = document.getElementById('s-date').value;
+  var cls  = document.getElementById('s-cls').value;
+  var max  = document.getElementById('s-max').value;
+  var sort = document.getElementById('s-sort').value;
+
+  // If airports not loaded yet, skip silently (boot will call again)
+  if (!dep || !arr || !date) return;
+  if (dep === arr) return toast('Departure and arrival must differ.');
+
+  var area = document.getElementById('results');
+  area.innerHTML = '<div class="empty">Searching\u2026</div>';
+
+  var p = new URLSearchParams({dep:dep, arr:arr, date:date, 'class':cls, sort:sort});
+  if (max) p.set('maxPrice', max);
+
+  var outbound = get('/flights?' + p);
+  var ret = [];
+
+  if (document.getElementById('s-ret').checked) {
+    var rd = document.getElementById('s-retdate').value;
+    if (rd) {
+      var rp = new URLSearchParams({dep:arr, arr:dep, date:rd, 'class':cls, sort:sort});
+      if (max) rp.set('maxPrice', max);
+      ret = get('/flights?' + rp).catch(function(){ return []; });
+    }
+  }
+
+  Promise.all([outbound, Promise.resolve(ret)]).then(function(results) {
+    var out = results[0];
+    var retFlights = Array.isArray(results[1]) ? results[1] : [];
+    renderResults(out, retFlights, area);
+  }).catch(function(e) {
+    area.innerHTML = '<div class="empty">Error: ' + e.message + '</div>';
+  });
 }
 
 function renderResults(out, ret, area) {
   if (!out.length && !ret.length) {
-    area.innerHTML='<div class="empty"><div class="empty-icon">✈</div>No flights found.</div>'; return;
+    area.innerHTML='<div class="empty"><div class="empty-icon">\u2708</div>No flights found.</div>';
+    return;
   }
-  let h = '';
-  if (out.length) h += `<div class="res-hdr">${out.length} outbound flight${out.length>1?'s':''}</div>` + out.map(f=>fCard(f,'o')).join('');
-  if (ret.length) h += `<div class="res-hdr" style="margin-top:1.25rem">${ret.length} return flight${ret.length>1?'s':''}</div>` + ret.map(f=>fCard(f,'r')).join('');
+  var h = '';
+  if (out.length) h += '<div class="res-hdr">' + out.length + ' outbound flight' + (out.length>1?'s':'') + '</div>' + out.map(function(f){return fCard(f,'o');}).join('');
+  if (ret.length) h += '<div class="res-hdr" style="margin-top:1.25rem">' + ret.length + ' return flight' + (ret.length>1?'s':'') + '</div>' + ret.map(function(f){return fCard(f,'r');}).join('');
   area.innerHTML = h;
 }
 
 function fCard(f, dir) {
-  const key = `${dir}-${f.airline_code}${f.flight_number}${f.flight_date}`;
-  const dur = durStr(f.departure_time, f.arrival_time);
-  const eco = parseInt(f.eco_available), fc = parseInt(f.first_available);
-  const dt  = f.departure_time.slice(0,5), at = f.arrival_time.slice(0,5);
+  var key = dir + '-' + f.airline_code + f.flight_number + f.flight_date;
+  var dur = durStr(f.departure_time, f.arrival_time);
+  var eco = parseInt(f.eco_available), fc = parseInt(f.first_available);
+  var dt  = String(f.departure_time).slice(0,5);
+  var at  = String(f.arrival_time).slice(0,5);
 
-  const eChip = f.eco_price!=null ? `<div class="chip${eco<=0?' full':''}" onclick="selCls('${key}','Economy',${f.eco_price},this)">
-    <span class="cls">Economy</span><span class="amt">$${Math.round(f.eco_price)}</span>
-    <span class="seats">${eco>0?eco+' left':'FULL'}</span></div>` : '';
-  const fChip = f.first_price!=null ? `<div class="chip${fc<=0?' full':''}" onclick="selCls('${key}','First',${f.first_price},this)">
-    <span class="cls">First</span><span class="amt">$${Math.round(f.first_price)}</span>
-    <span class="seats">${fc>0?fc+' left':'FULL'}</span></div>` : '';
+  var eChip = f.eco_price != null ? '<div class="chip' + (eco<=0?' full':'') + '" onclick="selCls(\'' + key + '\',\'Economy\',' + f.eco_price + ',this)">'
+    + '<span class="cls">Economy</span><span class="amt">$' + Math.round(f.eco_price) + '</span>'
+    + '<span class="seats">' + (eco>0 ? eco+' left' : 'FULL') + '</span></div>' : '';
 
-  return `<div class="f-card" id="fc-${key}">
-    <div class="f-head"><span class="airline-tag">${f.airline_code} ${f.flight_number}</span>
-      <span style="font-size:.78rem;color:var(--muted)">${f.airline_name}</span></div>
-    <div class="route">
-      <div><div class="iata">${f.departure_airport}</div><div class="ap-name">${f.dep_name||''}</div></div>
-      <div class="route-mid"><div class="route-dur">${dur}</div><div class="route-line"></div></div>
-      <div style="text-align:right"><div class="iata">${f.arrival_airport}</div><div class="ap-name">${f.arr_name||''}</div></div>
-    </div>
-    <div class="f-times"><span>Departs ${dt}</span><span>Arrives ${at}</span></div>
-    <div class="divider"></div>
-    <div class="price-row">${eChip}${fChip}
-      <button class="btn pri sm" style="margin-left:auto" onclick="bookPrompt('${f.airline_code}','${f.flight_number}','${f.flight_date}','${key}')">Book →</button>
-    </div>
-  </div>`;
+  var fChip = f.first_price != null ? '<div class="chip' + (fc<=0?' full':'') + '" onclick="selCls(\'' + key + '\',\'First\',' + f.first_price + ',this)">'
+    + '<span class="cls">First</span><span class="amt">$' + Math.round(f.first_price) + '</span>'
+    + '<span class="seats">' + (fc>0 ? fc+' left' : 'FULL') + '</span></div>' : '';
+
+  return '<div class="f-card" id="fc-' + key + '">'
+    + '<div class="f-head"><span class="airline-tag">' + f.airline_code + ' ' + f.flight_number + '</span>'
+    + '<span style="font-size:.78rem;color:var(--muted)">' + (f.airline_name||'') + '</span></div>'
+    + '<div class="route">'
+    + '<div><div class="iata">' + f.departure_airport + '</div><div class="ap-name">' + (f.dep_name||'') + '</div></div>'
+    + '<div class="route-mid"><div class="route-dur">' + dur + '</div><div class="route-line"></div></div>'
+    + '<div style="text-align:right"><div class="iata">' + f.arrival_airport + '</div><div class="ap-name">' + (f.arr_name||'') + '</div></div>'
+    + '</div>'
+    + '<div class="f-times"><span>Departs ' + dt + '</span><span>Arrives ' + at + '</span></div>'
+    + '<div class="divider"></div>'
+    + '<div class="price-row">' + eChip + fChip
+    + '<button class="btn pri sm" style="margin-left:auto" onclick="bookPrompt(\'' + f.airline_code + '\',\'' + f.flight_number + '\',\'' + f.flight_date + '\',\'' + key + '\')">Book \u2192</button>'
+    + '</div></div>';
 }
 
 function selCls(key, cls, price, el) {
-  document.querySelectorAll(`#fc-${key} .chip`).forEach(c=>c.classList.remove('sel'));
+  document.querySelectorAll('#fc-' + key + ' .chip').forEach(function(c){c.classList.remove('sel');});
   el.classList.add('sel');
-  selClass[key] = {cls, price};
+  selClass[key] = {cls:cls, price:price};
 }
 
 function durStr(dep, arr) {
-  const [dh,dm]=dep.split(':').map(Number),[ah,am]=arr.split(':').map(Number);
-  const t=(ah*60+am)-(dh*60+dm);
-  return `${Math.floor(t/60)}h ${t%60}m`;
+  var dp = String(dep).split(':').map(Number);
+  var ap = String(arr).split(':').map(Number);
+  var t  = (ap[0]*60+ap[1]) - (dp[0]*60+dp[1]);
+  return Math.floor(t/60) + 'h ' + (t%60) + 'm';
 }
 
 // ── Book ──────────────────────────────────────────────────────────────────
-async function bookPrompt(airline, num, date, key) {
-  cards = await get(`/cards?email=${encodeURIComponent(user.email)}`).catch(()=>[]);
-  if (!cards.length) { toast('Add a credit card in Account first.'); return; }
-  const sel = selClass[key] || {};
-  const cls = sel.cls || 'Economy', price = sel.price;
-  const opts = cards.map(c=>`<option value="${c.card_number}">${mask(c.card_number)} — ${c.card_holder}</option>`).join('');
-  openModal('Confirm booking', `
-    <div class="info-box"><strong>${airline} ${num}</strong> · ${date}<br>
-      ${cls} class${price?' · <strong>$'+parseFloat(price).toFixed(2)+'</strong>':''}</div>
-    <div class="field" style="margin-bottom:0"><label>Payment</label><select id="m-card">${opts}</select></div>
-    <div class="m-actions">
-      <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn pri" onclick="doBook('${airline}','${num}','${date}','${cls}')">Confirm</button>
-    </div>`);
+function bookPrompt(airline, num, date, key) {
+  get('/cards?email=' + encodeURIComponent(user.email)).then(function(data) {
+    cards = data;
+    if (!cards.length) { toast('Add a credit card in Account first.'); return; }
+    var sel   = selClass[key] || {};
+    var cls   = sel.cls || 'Economy';
+    var price = sel.price;
+    var opts  = cards.map(function(c) {
+      return '<option value="' + c.card_number + '">' + mask(c.card_number) + ' \u2014 ' + c.card_holder + '</option>';
+    }).join('');
+    openModal('Confirm booking',
+      '<div class="info-box"><strong>' + airline + ' ' + num + '</strong> \u00b7 ' + date + '<br>'
+      + cls + ' class' + (price ? ' \u00b7 <strong>$' + parseFloat(price).toFixed(2) + '</strong>' : '') + '</div>'
+      + '<div class="field" style="margin-bottom:0"><label>Payment</label><select id="m-card">' + opts + '</select></div>'
+      + '<div class="m-actions">'
+      + '<button class="btn" onclick="closeModal()">Cancel</button>'
+      + '<button class="btn pri" onclick="doBook(\'' + airline + '\',\'' + num + '\',\'' + date + '\',\'' + cls + '\')">Confirm</button>'
+      + '</div>');
+  }).catch(function(){ toast('Could not load cards.'); });
 }
 
-async function doBook(airline, num, date, cls) {
-  const card = document.getElementById('m-card')?.value;
-  try {
-    const r = await post('/bookings', {
-      customer_email: user.email, airline_code: airline,
-      flight_number: parseInt(num), flight_date: date, seat_class: cls, card_number: card
-    });
+function doBook(airline, num, date, cls) {
+  var card = document.getElementById('m-card') && document.getElementById('m-card').value;
+  if (!card) return;
+  post('/bookings', {
+    customer_email: user.email,
+    airline_code:   airline,
+    flight_number:  parseInt(num),
+    flight_date:    date,
+    seat_class:     cls,
+    card_number:    card
+  }).then(function(r) {
     closeModal();
-    toast(`Booking #${r.booking_id} confirmed!${r.price?' $'+parseFloat(r.price).toFixed(2):''}`);
+    toast('Booking #' + r.booking_id + ' confirmed!' + (r.price ? ' $' + parseFloat(r.price).toFixed(2) : ''));
     doSearch();
-  } catch(e) { toast('Booking failed: '+e.message); }
+  }).catch(function(e) { toast('Booking failed: ' + e.message); });
 }
 
 // ── Bookings ──────────────────────────────────────────────────────────────
-async function loadBookings() {
-  const el = document.getElementById('bk-list');
-  el.innerHTML = '<div class="empty">Loading…</div>';
-  try {
-    const bks = await get(`/bookings?email=${encodeURIComponent(user.email)}`);
-    if (!bks.length) { el.innerHTML='<div class="empty"><div class="empty-icon">🎫</div>No bookings yet.</div>'; return; }
-    el.innerHTML = bks.map(b => {
-      const fl = b.flights[0];
-      const dur = durStr(fl.departure_time, fl.arrival_time);
-      return `<div class="b-card">
-        <div class="b-top">
-          <div>
-            <div class="b-id">Booking #${b.booking_id}
-              <span class="tag ${fl.seat_class==='First'?'fst':'eco'}">${fl.seat_class}</span>
-              <span class="tag ok">Confirmed</span></div>
-            <div class="b-meta">${fl.airline_name} ${fl.airline_code}${fl.flight_number} · ${fl.flight_date}</div>
-          </div>
-          <button class="btn del sm" onclick="cancelBook(${b.booking_id})">Cancel</button>
-        </div>
-        <div class="divider"></div>
-        <div style="display:flex;justify-content:space-between;font-size:.85rem">
-          <div><strong>${fl.departure_airport}</strong> ${fl.dep_name||''}<br><span style="color:var(--muted)">${fl.departure_time.slice(0,5)}</span></div>
-          <div style="text-align:center;color:var(--muted);font-size:.78rem">${dur}<br>→</div>
-          <div style="text-align:right"><strong>${fl.arrival_airport}</strong> ${fl.arr_name||''}<br><span style="color:var(--muted)">${fl.arrival_time.slice(0,5)}</span></div>
-        </div>
-        ${fl.price?`<div style="margin-top:.5rem;font-size:.8rem;color:var(--muted)">Paid $${parseFloat(fl.price).toFixed(2)} · ${mask(fl.card_number)}</div>`:''}
-      </div>`;
+function loadBookings() {
+  var el = document.getElementById('bk-list');
+  el.innerHTML = '<div class="empty">Loading\u2026</div>';
+  get('/bookings?email=' + encodeURIComponent(user.email)).then(function(bks) {
+    if (!bks.length) { el.innerHTML='<div class="empty"><div class="empty-icon">\ud83c\udfab</div>No bookings yet.</div>'; return; }
+    el.innerHTML = bks.map(function(b) {
+      var fl  = b.flights[0];
+      var dur = durStr(fl.departure_time, fl.arrival_time);
+      var dt  = String(fl.departure_time).slice(0,5);
+      var at  = String(fl.arrival_time).slice(0,5);
+      return '<div class="b-card">'
+        + '<div class="b-top"><div>'
+        + '<div class="b-id">Booking #' + b.booking_id
+        + '<span class="tag ' + (fl.seat_class==='First'?'fst':'eco') + '">' + fl.seat_class + '</span>'
+        + '<span class="tag ok">Confirmed</span></div>'
+        + '<div class="b-meta">' + (fl.airline_name||'') + ' ' + fl.airline_code + fl.flight_number + ' \u00b7 ' + fl.flight_date + '</div>'
+        + '</div><button class="btn del sm" onclick="cancelBook(' + b.booking_id + ')">Cancel</button></div>'
+        + '<div class="divider"></div>'
+        + '<div style="display:flex;justify-content:space-between;font-size:.85rem">'
+        + '<div><strong>' + fl.departure_airport + '</strong> ' + (fl.dep_name||'') + '<br><span style="color:var(--muted)">' + dt + '</span></div>'
+        + '<div style="text-align:center;color:var(--muted);font-size:.78rem">' + dur + '<br>\u2192</div>'
+        + '<div style="text-align:right"><strong>' + fl.arrival_airport + '</strong> ' + (fl.arr_name||'') + '<br><span style="color:var(--muted)">' + at + '</span></div>'
+        + '</div>'
+        + (fl.price ? '<div style="margin-top:.5rem;font-size:.8rem;color:var(--muted)">Paid $' + parseFloat(fl.price).toFixed(2) + ' \u00b7 ' + mask(fl.card_number) + '</div>' : '')
+        + '</div>';
     }).join('');
-  } catch(e) { el.innerHTML=`<div class="empty">Error: ${e.message}</div>`; }
+  }).catch(function(e) { el.innerHTML='<div class="empty">Error: ' + e.message + '</div>'; });
 }
 
-async function cancelBook(id) {
-  if (!confirm(`Cancel booking #${id}?`)) return;
-  try { await del(`/bookings/${id}`); toast(`Booking #${id} cancelled.`); loadBookings(); }
-  catch(e) { toast(e.message); }
+function cancelBook(id) {
+  if (!confirm('Cancel booking #' + id + '?')) return;
+  del('/bookings/' + id).then(function() {
+    toast('Booking #' + id + ' cancelled.'); loadBookings();
+  }).catch(function(e) { toast(e.message); });
 }
 
 // ── Account ───────────────────────────────────────────────────────────────
-async function loadAccount() {
+function loadAccount() {
   document.getElementById('ac-name').value  = user.name;
   document.getElementById('ac-email').value = user.email;
-  const ap = document.getElementById('ac-ap');
-  ap.innerHTML = '<option value="">— none —</option>' +
-    airports.map(a=>`<option value="${a.iata_code}"${a.iata_code===user.home_airport_code?' selected':''}>${a.iata_code} — ${a.name}</option>`).join('');
-  await loadAddr();
-  await loadCards();
+  var ap = document.getElementById('ac-ap');
+  ap.innerHTML = '<option value="">\u2014 none \u2014</option>' +
+    airports.map(function(a) {
+      return '<option value="' + a.iata_code + '"' + (a.iata_code===user.home_airport_code?' selected':'') + '>'
+        + a.iata_code + ' \u2014 ' + a.name + '</option>';
+    }).join('');
+  loadAddr();
+  loadCards();
 }
 
-async function saveProfile() {
-  try {
-    user = await put(`/customers/${encodeURIComponent(user.email)}`, {
-      name: document.getElementById('ac-name').value.trim(),
-      home_airport_code: document.getElementById('ac-ap').value || null
-    });
-    save(); document.getElementById('nav-name').textContent = user.name;
+function saveProfile() {
+  put('/customers/' + encodeURIComponent(user.email), {
+    name: document.getElementById('ac-name').value.trim(),
+    home_airport_code: document.getElementById('ac-ap').value || null
+  }).then(function(u) {
+    user = u; save();
+    document.getElementById('nav-name').textContent = user.name;
     toast('Profile saved.');
-  } catch(e) { toast(e.message); }
+  }).catch(function(e) { toast(e.message); });
 }
 
-async function loadAddr() {
-  addresses = await get(`/addresses?email=${encodeURIComponent(user.email)}`).catch(()=>[]);
-  const el = document.getElementById('addr-list');
-  if (!addresses.length) { el.innerHTML='<div style="font-size:.85rem;color:var(--muted);padding:.5rem 0">No addresses.</div>'; return; }
-  el.innerHTML = addresses.map(a=>`<div class="list-item">
-    <div class="li-info"><div class="li-title">${a.street}</div>
-      <div class="li-sub">${[a.city,a.state,a.country].filter(Boolean).join(', ')}</div></div>
-    <button class="btn del sm" onclick="delAddr(${a.address_id},${a.is_billing})">✕</button>
-  </div>`).join('');
+function loadAddr() {
+  get('/addresses?email=' + encodeURIComponent(user.email)).then(function(data) {
+    addresses = data;
+    var el = document.getElementById('addr-list');
+    if (!addresses.length) { el.innerHTML='<div style="font-size:.85rem;color:var(--muted);padding:.5rem 0">No addresses.</div>'; return; }
+    el.innerHTML = addresses.map(function(a) {
+      return '<div class="list-item">'
+        + '<div class="li-info"><div class="li-title">' + a.street + '</div>'
+        + '<div class="li-sub">' + [a.city,a.state,a.country].filter(Boolean).join(', ') + '</div></div>'
+        + '<button class="btn del sm" onclick="delAddr(' + a.address_id + ',' + a.is_billing + ')">&#x2715;</button>'
+        + '</div>';
+    }).join('');
+  }).catch(function(){ addresses = []; });
 }
 
-async function delAddr(id, billing) {
+function delAddr(id, billing) {
   if (billing) { toast('Cannot delete: used as billing address.'); return; }
   if (!confirm('Delete this address?')) return;
-  try { await del(`/addresses/${id}`); toast('Address deleted.'); loadAddr(); }
-  catch(e) { toast(e.message); }
+  del('/addresses/' + id).then(function() { toast('Address deleted.'); loadAddr(); })
+    .catch(function(e) { toast(e.message); });
 }
 
 function openAddAddr() {
-  openModal('Add address', `
-    <div class="grid" style="margin-bottom:.75rem">
-      <div class="field" style="grid-column:1/-1"><label>Street</label><input type="text" id="na-street" placeholder="123 Main St"></div>
-    </div>
-    <div class="grid g2" style="margin-bottom:.75rem">
-      <div class="field"><label>City</label><input type="text" id="na-city"></div>
-      <div class="field"><label>State <span style="font-weight:400">(optional)</span></label><input type="text" id="na-state"></div>
-    </div>
-    <div class="field" style="margin-bottom:0"><label>Country</label><input type="text" id="na-country" value="USA"></div>
-    <div class="m-actions">
-      <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn pri" onclick="submitAddr()">Save</button>
-    </div>`);
+  openModal('Add address',
+    '<div class="field" style="margin-bottom:.75rem"><label>Street</label><input type="text" id="na-street" placeholder="123 Main St"></div>'
+    + '<div class="grid g2" style="margin-bottom:.75rem">'
+    + '<div class="field"><label>City</label><input type="text" id="na-city"></div>'
+    + '<div class="field"><label>State (optional)</label><input type="text" id="na-state"></div>'
+    + '</div>'
+    + '<div class="field" style="margin-bottom:0"><label>Country</label><input type="text" id="na-country" value="USA"></div>'
+    + '<div class="m-actions">'
+    + '<button class="btn" onclick="closeModal()">Cancel</button>'
+    + '<button class="btn pri" onclick="submitAddr()">Save</button>'
+    + '</div>');
 }
 
-async function submitAddr() {
-  const street=document.getElementById('na-street').value.trim();
-  const city=document.getElementById('na-city').value.trim();
-  const state=document.getElementById('na-state').value.trim();
-  const country=document.getElementById('na-country').value.trim();
+function submitAddr() {
+  var street  = document.getElementById('na-street').value.trim();
+  var city    = document.getElementById('na-city').value.trim();
+  var state   = document.getElementById('na-state').value.trim();
+  var country = document.getElementById('na-country').value.trim();
   if (!street||!city||!country) { toast('Street, city, country required.'); return; }
-  try {
-    await post('/addresses', {street, city, state:state||null, country, customer_email:user.email});
-    closeModal(); toast('Address added.'); loadAddr();
-  } catch(e) { toast(e.message); }
+  post('/addresses', {street:street, city:city, state:state||null, country:country, customer_email:user.email})
+    .then(function() { closeModal(); toast('Address added.'); loadAddr(); })
+    .catch(function(e) { toast(e.message); });
 }
 
-async function loadCards() {
-  cards = await get(`/cards?email=${encodeURIComponent(user.email)}`).catch(()=>[]);
-  const el = document.getElementById('card-list');
-  if (!cards.length) { el.innerHTML='<div style="font-size:.85rem;color:var(--muted);padding:.5rem 0">No cards.</div>'; return; }
-  el.innerHTML = cards.map(c=>`<div class="list-item">
-    <div class="li-info">
-      <div class="li-title mono">${mask(c.card_number)}</div>
-      <div class="li-sub">${c.card_holder} · exp. ${c.expiry}<br>${c.street}, ${c.city}</div>
-    </div>
-    <button class="btn del sm" onclick="delCard('${c.card_number.replace(/'/g,"\\'")}')">✕</button>
-  </div>`).join('');
+function loadCards() {
+  get('/cards?email=' + encodeURIComponent(user.email)).then(function(data) {
+    cards = data;
+    var el = document.getElementById('card-list');
+    if (!cards.length) { el.innerHTML='<div style="font-size:.85rem;color:var(--muted);padding:.5rem 0">No cards.</div>'; return; }
+    el.innerHTML = cards.map(function(c) {
+      return '<div class="list-item">'
+        + '<div class="li-info"><div class="li-title mono">' + mask(c.card_number) + '</div>'
+        + '<div class="li-sub">' + c.card_holder + ' \u00b7 exp. ' + c.expiry + '<br>' + c.street + ', ' + c.city + '</div></div>'
+        + '<button class="btn del sm" onclick="delCard(\'' + c.card_number.replace(/'/g,"\\'") + '\')">&#x2715;</button>'
+        + '</div>';
+    }).join('');
+  }).catch(function(){ cards = []; });
 }
 
-async function delCard(num) {
+function delCard(num) {
   if (!confirm('Delete this card?')) return;
-  try { await del(`/cards/${encodeURIComponent(num)}`); toast('Card deleted.'); loadCards(); }
-  catch(e) { toast(e.message); }
+  del('/cards/' + encodeURIComponent(num))
+    .then(function() { toast('Card deleted.'); loadCards(); })
+    .catch(function(e) { toast(e.message); });
 }
 
 function openAddCard() {
   if (!addresses.length) { toast('Add an address first.'); return; }
-  const opts = addresses.map(a=>`<option value="${a.address_id}">${a.street}, ${a.city}</option>`).join('');
-  openModal('Add credit card', `
-    <div class="field" style="margin-bottom:.75rem"><label>Card number</label><input type="text" id="nc-num" placeholder="4111 1111 1111 1111" maxlength="20"></div>
-    <div class="grid g2" style="margin-bottom:.75rem">
-      <div class="field"><label>Card holder</label><input type="text" id="nc-holder"></div>
-      <div class="field"><label>Expiry (MM/YYYY)</label><input type="text" id="nc-exp" placeholder="08/2028" maxlength="7"></div>
-    </div>
-    <div class="field" style="margin-bottom:0"><label>Billing address</label><select id="nc-addr">${opts}</select></div>
-    <div class="m-actions">
-      <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn pri" onclick="submitCard()">Save</button>
-    </div>`);
+  var opts = addresses.map(function(a) {
+    return '<option value="' + a.address_id + '">' + a.street + ', ' + a.city + '</option>';
+  }).join('');
+  openModal('Add credit card',
+    '<div class="field" style="margin-bottom:.75rem"><label>Card number</label><input type="text" id="nc-num" placeholder="4111 1111 1111 1111" maxlength="20"></div>'
+    + '<div class="grid g2" style="margin-bottom:.75rem">'
+    + '<div class="field"><label>Card holder</label><input type="text" id="nc-holder"></div>'
+    + '<div class="field"><label>Expiry (MM/YYYY)</label><input type="text" id="nc-exp" placeholder="08/2028" maxlength="7"></div>'
+    + '</div>'
+    + '<div class="field" style="margin-bottom:0"><label>Billing address</label><select id="nc-addr">' + opts + '</select></div>'
+    + '<div class="m-actions">'
+    + '<button class="btn" onclick="closeModal()">Cancel</button>'
+    + '<button class="btn pri" onclick="submitCard()">Save</button>'
+    + '</div>');
 }
 
-async function submitCard() {
-  const num=document.getElementById('nc-num').value.replace(/\s/g,'');
-  const holder=document.getElementById('nc-holder').value.trim();
-  const expiry=document.getElementById('nc-exp').value.trim();
-  const addrId=document.getElementById('nc-addr').value;
+function submitCard() {
+  var num    = document.getElementById('nc-num').value.replace(/\s/g,'');
+  var holder = document.getElementById('nc-holder').value.trim();
+  var expiry = document.getElementById('nc-exp').value.trim();
+  var addrId = document.getElementById('nc-addr').value;
   if (!num||!holder||!expiry||!addrId) { toast('All fields required.'); return; }
   if (!/^\d{2}\/\d{4}$/.test(expiry)) { toast('Expiry must be MM/YYYY.'); return; }
-  try {
-    await post('/cards', {card_number:num, card_holder:holder, expiry, customer_email:user.email, billing_address_id:parseInt(addrId)});
-    closeModal(); toast('Card added.'); loadCards();
-  } catch(e) { toast(e.message); }
+  post('/cards', {card_number:num, card_holder:holder, expiry:expiry, customer_email:user.email, billing_address_id:parseInt(addrId)})
+    .then(function() { closeModal(); toast('Card added.'); loadCards(); })
+    .catch(function(e) { toast(e.message); });
 }
 
 // ── Modal ─────────────────────────────────────────────────────────────────
@@ -628,15 +701,15 @@ function openModal(title, body) {
 function closeModal() { document.getElementById('mbg').style.display = 'none'; }
 
 // ── Toast ─────────────────────────────────────────────────────────────────
-let _tt;
+var _tt;
 function toast(msg) {
-  const el = document.getElementById('toast');
+  var el = document.getElementById('toast');
   el.textContent = msg; el.classList.add('show');
-  clearTimeout(_tt); _tt = setTimeout(()=>el.classList.remove('show'), 3500);
+  clearTimeout(_tt); _tt = setTimeout(function(){ el.classList.remove('show'); }, 3500);
 }
 
 // ── Util ──────────────────────────────────────────────────────────────────
-function mask(n) { return n ? '•••• •••• •••• '+String(n).slice(-4) : ''; }
+function mask(n) { return n ? '\u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 ' + String(n).slice(-4) : ''; }
 </script>
 </body>
 </html>

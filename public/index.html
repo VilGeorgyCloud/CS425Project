@@ -157,7 +157,7 @@ input:disabled{background:var(--bg);color:var(--muted);cursor:not-allowed}
     <div id="pane-register" style="display:none">
       <div class="field" style="margin-bottom:.75rem"><label>Full name</label><input type="text" id="rg-name" placeholder="Jane Smith"></div>
       <div class="field" style="margin-bottom:.75rem"><label>Email</label><input type="email" id="rg-email" placeholder="you@example.com"></div>
-      <div class="field" style="margin-bottom:.75rem"><label>Home airport <span style="font-weight:400">(optional)</span></label><select id="rg-airport"><option value="">— none —</option></select></div>
+      <div class="field" style="margin-bottom:.75rem"><label>Home airport <span style="font-weight:400">(optional)</span></label><select id="rg-airport"></select></div>
       <button class="btn pri full" onclick="register()">Create account</button>
     </div>
 
@@ -260,17 +260,6 @@ input:disabled{background:var(--bg);color:var(--muted);cursor:not-allowed}
 // ── State ─────────────────────────────────────────────────────────────────
 let user = null, airports = [], addresses = [], cards = [], selClass = {};
 
-// ── Boot ──────────────────────────────────────────────────────────────────
-(async () => {
-  airports = await get('/airports').catch(() => []);
-  fillAirports(['s-dep','s-arr','rg-airport','ac-ap']);
-  const s = sessionStorage.getItem('skyvil');
-  if (s) { user = JSON.parse(s); enterApp(); }
-  const today = new Date().toISOString().slice(0,10);
-  document.getElementById('s-date').value = today;
-  document.getElementById('s-retdate').value = today;
-})();
-
 // ── HTTP ──────────────────────────────────────────────────────────────────
 async function req(method, path, body) {
   const r = await fetch(path, { method, headers:{'Content-Type':'application/json'}, body: body ? JSON.stringify(body) : undefined });
@@ -283,6 +272,17 @@ const post = (p,b)   => req('POST',   p, b);
 const put  = (p,b)   => req('PUT',    p, b);
 const del  = p       => req('DELETE', p);
 
+// ── Boot ──────────────────────────────────────────────────────────────────
+(async () => {
+  airports = await get('/airports').catch(() => []);
+  fillAirports(['s-dep','s-arr','rg-airport','ac-ap']);
+  const s = sessionStorage.getItem('skyvil');
+  if (s) { user = JSON.parse(s); enterApp(); }
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('s-date').value = today;
+  document.getElementById('s-retdate').value = today;
+})();
+
 // ── Airport helpers ───────────────────────────────────────────────────────
 function fillAirports(ids) {
   const opts = airports.map(a => `<option value="${a.iata_code}">${a.iata_code} — ${a.name}</option>`).join('');
@@ -294,6 +294,7 @@ function fillAirports(ids) {
   });
   const arr = document.getElementById('s-arr');
   if (arr && arr.options.length > 1) arr.selectedIndex = 1;
+  // Also fill ac-ap with current user home airport selected when on account page
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────
